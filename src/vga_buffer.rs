@@ -86,12 +86,13 @@ impl Writer {
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
+
             byte => {
+                let row = BUFFER_HEIGHT - 1;
+                let col = self.column_position;
                 if self.column_position >= BUFFER_WIDTH {
                     self.new_line();
                 }
-                let row = BUFFER_HEIGHT - 1;
-                let col = self.column_position;
 
                 let color_code = self.color_code;
                 self.buffer.chars[row][col].write(ScreenChar {
@@ -124,6 +125,37 @@ impl Writer {
             self.buffer.chars[row][col].write(blank);
         }
     }
+
+    pub fn backspace(&mut self) {
+        let blank = ScreenChar {
+            ascii_character: b' ',
+            color_code: self.color_code,
+        };
+        let mut cell = &mut self.buffer.chars[BUFFER_HEIGHT - 1][self.column_position];
+
+        let val = cell.read();
+
+        if val.ascii_character == blank.ascii_character && val.color_code.0 == blank.color_code.0 {
+            if self.column_position == 0 {
+                return;
+            }
+            self.column_position -= 1;
+            self.buffer.chars[BUFFER_HEIGHT - 1][self.column_position].write(blank);
+        } else {
+            cell.write(blank);
+        }
+    }
+
+    pub fn clear_everything(&mut self) {
+        for row in 0..BUFFER_HEIGHT {
+            self.clear_row(row)
+        }
+        self.column_position = 0;
+    }
+}
+
+pub fn console_backspace() {
+    WRITER.lock().backspace();
 }
 
 impl fmt::Write for Writer {
