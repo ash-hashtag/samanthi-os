@@ -12,12 +12,17 @@ use core::panic::PanicInfo;
 
 use x86_64::instructions;
 
+pub mod acpi;
 pub mod allocator;
+pub mod cpu;
+pub mod drivers;
 pub mod gdt;
 pub mod interrupts;
+pub mod logging;
 pub mod memory;
 pub mod pcie;
 pub mod serial;
+pub mod system;
 pub mod task;
 pub mod vga_buffer;
 

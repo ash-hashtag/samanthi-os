@@ -20,12 +20,14 @@ name = "stack_overflow"
 harness = false
 
 [dependencies]
+bit_field = "0.10.2"
 bootloader = {version = "0.9", features = ["map_physical_memory"]}
 conquer-once = { version = "0.4.0", default-features = false }
 crossbeam = { version = "0.8.4", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.30", default-features = false, features = ["alloc"] }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 linked_list_allocator = "0.10.5"
+log = "0.4.22"
 pc-keyboard = "0.7.0"
 pic8259 = "0.10.4"
 spin = "0.9.8"
@@ -48,8 +50,9 @@ test-args = [
 test-success-exit-code = 33 # (0x10 << 1) | 1
 test-timeout = 300
 
-run-args = ["-monitor", "stdio", "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04",
+run-args = ["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04",
   "-device", "e1000,netdev=net0,mac=52:54:00:12:34:56" ,
-  "-netdev", "user,id=net0,hostfwd=tcp::2222-:22"
+  "-netdev", "user,id=net0",
+  "-serial", "stdio",
 ]
 

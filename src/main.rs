@@ -13,6 +13,7 @@ use alloc::string::String;
 use alloc::{string::ToString, vec::Vec};
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
+use samanthi::drivers::pci::detect_devices;
 use samanthi::task::executor::Executor;
 use samanthi::task::simple_executor::SimpleExecutor;
 use samanthi::task::{keyboard, Task};
@@ -21,6 +22,7 @@ use samanthi::{
     memory::{self, translate_addr},
     println,
 };
+use samanthi::{logging, serial_println};
 use x86_64::{
     structures::paging::{Page, PageTable, Translate},
     VirtAddr,
@@ -37,7 +39,12 @@ fn kernal_main(boot_info: &'static BootInfo) -> ! {
         unsafe { memory::BootInfoFrameAllocator::init(&boot_info.memory_map) };
     allocator::init_heap(&mut mapper, &mut frame_allocator);
 
-    println!("Booted Into Samanthi");
+    logging::init();
+
+    log::info!("Booted Into Samanthi");
+    log::info!("Heap Initialized");
+
+    detect_devices();
 
     // use x86_64::registers::control::Cr4;
 
