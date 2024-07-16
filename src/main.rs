@@ -5,6 +5,7 @@
 #![test_runner(samanthi::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![feature(panic_info_message)]
+#![feature(const_mut_refs)]
 extern crate alloc;
 extern crate core;
 use alloc::boxed::Box;
@@ -12,6 +13,9 @@ use alloc::string::String;
 use alloc::{string::ToString, vec::Vec};
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
+use samanthi::task::executor::Executor;
+use samanthi::task::simple_executor::SimpleExecutor;
+use samanthi::task::{keyboard, Task};
 use samanthi::{
     allocator, hlt_loop,
     memory::{self, translate_addr},
@@ -35,57 +39,25 @@ fn kernal_main(boot_info: &'static BootInfo) -> ! {
     let s = "From Kernel";
     println!("{} {}", s.as_ptr() as usize, s);
 
+    // let mut executor = SimpleExecutor::new();
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(keyboard::print_keypresses()));
+    executor.run();
+
     #[cfg(test)]
     test_main();
 
-    // let i4_table = unsafe { active_level_4_table(phys_mem_offset) };
-
-    // for (i, entry) in i4_table.iter().enumerate() {
-    //     if !entry.is_unused() {
-    //         println!("L4 Entry {}: {:?}", i, entry);
-
-    //         let phys = entry.frame().unwrap().start_address();
-    //         let virt = phys.as_u64() + boot_info.physical_memory_offset;
-    //         let ptr = VirtAddr::new(virt).as_mut_ptr();
-
-    //         let i3_table: &PageTable = unsafe { &*ptr };
-
-    //         for (i, entry) in i3_table.iter().enumerate() {
-    //             if !entry.is_unused() {
-    //                 println!("  L3 Entry {}: {:?}", i, entry);
-    //             }
-    //         }
-    //     }
-    // }
-
-    // let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-
-    // let addresses = [
-    //     0xb8000,
-    //     0x201008,
-    //     0x0100_0020_1210,
-    //     boot_info.physical_memory_offset,
-    // ];
-
-    // for &address in &addresses {
-    //     let virt = VirtAddr::new(address);
-
-    //     // let phys = unsafe { translate_addr(virt, phys_mem_offset) };
-    //     let phys = mapper.translate_addr(virt);
-    //     println!("{:?} -> {:?}", virt, phys);
-    // }
-
-    // let mut strings = Vec::new();
-
-    // for i in 0..10 {
-    //     strings.push(i.to_string());
-    // }
-
-    // for s in strings {
-    //     println!("{}", s);
-    // }
-
     hlt_loop()
+}
+
+async fn async_number() -> u32 {
+    69
+}
+
+async fn example_task() {
+    let number = async_number().await;
+    println!("async number: {}", number);
 }
 
 #[cfg(not(test))]

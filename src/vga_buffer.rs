@@ -34,6 +34,27 @@ pub enum Color {
     White = 15,
 }
 
+impl Color {
+    pub fn from_string(s: &str) -> Option<Color> {
+        let color = match s {
+            "red" => Self::Red,
+            "blue" => Self::Blue,
+            "green" => Self::Green,
+            "cyan" => Self::Cyan,
+            "brown" => Self::Brown,
+            "magenta" => Self::Magenta,
+            "pink" => Self::Pink,
+            "yellow" => Self::Yellow,
+            "white" => Self::White,
+            "black" => Self::Black,
+            _ => {
+                return None;
+            }
+        };
+        Some(color)
+    }
+}
+
 #[derive(Clone, Copy)]
 #[repr(transparent)]
 struct ColorCode(u8);
@@ -66,6 +87,14 @@ pub struct Writer {
 }
 
 impl Writer {
+    pub fn set_color(&mut self, color: ColorCode) {
+        self.color_code = color;
+    }
+
+    pub fn set_colors(&mut self, fg: Color, bg: Color) {
+        self.set_color(ColorCode::new(fg, bg));
+    }
+
     pub fn new() -> Self {
         Self {
             column_position: 0,
@@ -89,13 +118,12 @@ impl Writer {
 
             byte => {
                 let row = BUFFER_HEIGHT - 1;
-                let col = self.column_position;
-                if self.column_position >= BUFFER_WIDTH {
+                if self.column_position >= BUFFER_WIDTH - 1 {
                     self.new_line();
                 }
 
                 let color_code = self.color_code;
-                self.buffer.chars[row][col].write(ScreenChar {
+                self.buffer.chars[row][self.column_position].write(ScreenChar {
                     ascii_character: byte,
                     color_code,
                 });
@@ -131,6 +159,7 @@ impl Writer {
             ascii_character: b' ',
             color_code: self.color_code,
         };
+
         let mut cell = &mut self.buffer.chars[BUFFER_HEIGHT - 1][self.column_position];
 
         let val = cell.read();

@@ -1,3 +1,6 @@
+pub mod fixed_size_block;
+pub mod linked_list;
+
 extern crate alloc;
 extern crate core;
 
@@ -11,23 +14,20 @@ use x86_64::{
     VirtAddr,
 };
 
+use self::{
+    fixed_size_block::FixedSizeBlockAllocator,
+    linked_list::{LinkedListAllocator, Locked},
+};
+
+// #[global_allocator]
+// static ALLOCATOR: LockedHeap = LockedHeap::empty();
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
+// #[global_allocator]
+// static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
 
 pub const HEAP_START: usize = 0x_4444_4444_0000;
 pub const HEAP_SIZE: usize = 100 * 1024;
-
-pub struct Dummy;
-
-unsafe impl GlobalAlloc for Dummy {
-    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
-        null_mut()
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        panic!("dealloc should be never called")
-    }
-}
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
@@ -56,8 +56,23 @@ pub fn init_heap(
     }
 
     unsafe {
-        ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
+        ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
+        // ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
     }
 
     Ok(())
+}
+
+fn align_up(addr: usize, align: usize) -> usize {
+    // let remainder = addr % align;
+    // if remainder == 0 {
+    //     addr // addr alreadyaddr aligned
+    // } else {
+    //     addr - remainder + align
+    // }
+
+    (addr + align - 1) & !(align - 1)
+
+    // let offset = (addr as *const u8).align_offset(align);
+    // addr + offset
 }
