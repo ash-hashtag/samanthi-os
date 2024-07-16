@@ -42,7 +42,14 @@ test-args = [
     "-display",
     "none",
 ]
+
+
+
 test-success-exit-code = 33 # (0x10 << 1) | 1
 test-timeout = 300
 
+run-args = ["-monitor", "stdio", "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04",
+  "-device", "e1000,netdev=net0,mac=52:54:00:12:34:56" ,
+  "-netdev", "user,id=net0,hostfwd=tcp::2222-:22"
+]
 

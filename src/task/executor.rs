@@ -1,12 +1,19 @@
 extern crate alloc;
 
-use core::task::{Context, Waker};
+use core::{
+    sync::atomic::AtomicBool,
+    task::{Context, Waker},
+};
 
 use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
 use crossbeam::queue::ArrayQueue;
 use x86_64::instructions::interrupts;
 
+use crate::exit_qemu;
+
 use super::{Task, TaskId};
+
+pub static EXIT_FLAG: AtomicBool = AtomicBool::new(false);
 
 pub struct Executor {
     tasks: BTreeMap<TaskId, Task>,
@@ -63,6 +70,9 @@ impl Executor {
     pub fn run(&mut self) -> ! {
         loop {
             self.run_ready_tasks();
+            if EXIT_FLAG.load(core::sync::atomic::Ordering::Relaxed) {
+                exit_qemu(crate::QemuExitCode::Success);
+            }
             self.sleep_if_idle();
         }
     }

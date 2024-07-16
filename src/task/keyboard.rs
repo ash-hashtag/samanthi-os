@@ -18,6 +18,8 @@ use crate::{
     vga_buffer::{console_backspace, Color, WRITER},
 };
 
+use super::executor::EXIT_FLAG;
+
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 static WAKER: AtomicWaker = AtomicWaker::new();
 
@@ -219,6 +221,19 @@ pub fn execute_cmd(current_dir: &mut String, cmd: &str) {
             }
 
             println!("usage: color <foreground_color> <background_color>");
+        }
+
+        _ if cmd.starts_with("read ") => {
+            if let Ok(port) = cmd["read ".len()..].parse::<u16>() {
+                let val: u8 = unsafe { x86_64::instructions::port::Port::new(port).read() };
+                println!("{} {}", port, val);
+            } else {
+                println!("usage: read <port>");
+            }
+        }
+
+        "shutdown now" => {
+            EXIT_FLAG.store(true, core::sync::atomic::Ordering::Relaxed);
         }
         _ => println!("unknown command or misusage: {}", cmd),
     };

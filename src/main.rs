@@ -30,25 +30,31 @@ entry_point!(kernal_main);
 
 fn kernal_main(boot_info: &'static BootInfo) -> ! {
     samanthi::init();
+
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
     let mut frame_allocator =
         unsafe { memory::BootInfoFrameAllocator::init(&boot_info.memory_map) };
     allocator::init_heap(&mut mapper, &mut frame_allocator);
 
-    let s = "From Kernel";
-    println!("{} {}", s.as_ptr() as usize, s);
+    println!("Booted Into Samanthi");
+
+    // use x86_64::registers::control::Cr4;
+
+    // let cr4_flags = Cr4::read();
+
+    // println!("CR4 Flags: {:?}", cr4_flags);
 
     // let mut executor = SimpleExecutor::new();
     let mut executor = Executor::new();
-    executor.spawn(Task::new(example_task()));
+    // executor.spawn(Task::new(example_task()));
     executor.spawn(Task::new(keyboard::print_keypresses()));
     executor.run();
 
-    #[cfg(test)]
-    test_main();
+    // #[cfg(test)]
+    // test_main();
 
-    hlt_loop()
+    // hlt_loop()
 }
 
 async fn async_number() -> u32 {

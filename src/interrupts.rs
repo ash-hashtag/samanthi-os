@@ -35,7 +35,6 @@ lazy_static! {
 
         idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
         idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
-
         idt.page_fault.set_handler_fn(page_fault_handler);
 
         idt
@@ -56,6 +55,7 @@ pub fn init_idt() {
 pub enum InterruptIndex {
     Timer = PIC_1_OFFSET,
     Keyboard,
+    // Ethernet,
 }
 
 impl InterruptIndex {
@@ -80,6 +80,13 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
 }
+// extern "x86-interrupt" fn ethernet_interrupt_handler(stack_frame: InterruptStackFrame) {
+//     println!("EXCEPTION: ETHERNET\n{:#?}", stack_frame);
+//     unsafe {
+//         PICS.lock()
+//             .notify_end_of_interrupt(InterruptIndex::Ethernet.as_u8());
+//     }
+// }
 
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
@@ -98,99 +105,6 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
 
     crate::task::keyboard::add_scancode(scancode);
 
-    // if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-    //     if let Some(key) = keyboard.process_keyevent(key_event) {
-    //         match key {
-    //             DecodedKey::Unicode(c) => {
-    //                 match c {
-    //                     '\n' => {
-    //                         print!("\n");
-    //                         let mut history = CONSOLE_HISTORY.lock();
-    //                         if let Some(cmd) = history.front() {
-    //                             if (!cmd.is_empty()) {
-    //                                 match cmd.as_str() {
-    //                                     "clear" => WRITER.lock().clear_everything(),
-    //                                     "ls" => {
-    //                                         for key in MEMORY_FS.lock().keys() {
-    //                                             println!(" {}", key);
-    //                                         }
-    //                                     }
-    //                                     s if cmd.starts_with("rm ") => {
-    //                                         let filename = &s["rm ".len()..];
-    //                                         if filename.is_empty() {
-    //                                             println!(" rm: filename can't be empty, usage: ");
-    //                                             println!(" rm <filename>");
-    //                                         } else {
-    //                                             MEMORY_FS.lock().remove(filename);
-    //                                         }
-    //                                     }
-    //                                     s if cmd.starts_with("touch ") => {
-    //                                         if let Some((filename, content)) =
-    //                                             &s["touch ".len()..].split_once(' ')
-    //                                         {
-    //                                             MEMORY_FS.lock().insert(
-    //                                                 filename.to_string(),
-    //                                                 content.to_string(),
-    //                                             );
-    //                                             println!(" File created {}", filename);
-    //                                         } else {
-    //                                             println!(" Usage: ");
-    //                                             println!("   touch <filename> <content>");
-    //                                         }
-    //                                     }
-    //                                     s if cmd.starts_with("cat ") => {
-    //                                         let filename = &s["cat ".len()..];
-    //                                         if filename.is_empty() {
-    //                                             println!("  cat: filename can't be empty, usage: ");
-    //                                             println!("  cat <filename>");
-    //                                         } else {
-    //                                             if let Some(content) =
-    //                                                 MEMORY_FS.lock().get(filename)
-    //                                             {
-    //                                                 println!(" {}", content);
-    //                                             } else {
-    //                                                 println!(
-    //                                                     " cat: No File found with name {}",
-    //                                                     filename
-    //                                                 );
-    //                                             }
-    //                                         }
-    //                                     }
-    //                                     _ => {
-    //                                         println!(" unknown command: {}", cmd)
-    //                                     }
-    //                                 }
-    //                                 history.push_front(String::new());
-    //                                 if history.len() > 10 {
-    //                                     history.pop_back();
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     c if c as u8 == 8 => {
-    //                         console_backspace();
-    //                         if let Some(cmd) = CONSOLE_HISTORY.lock().front_mut() {
-    //                             cmd.pop();
-    //                         }
-    //                     }
-    //                     '\t' => {
-    //                         print!("  ");
-    //                     }
-    //                     _ => {
-    //                         print!("{}", c);
-    //                         let mut gaurd = CONSOLE_HISTORY.lock();
-    //                         if let Some(cmd) = gaurd.front_mut() {
-    //                             cmd.push(c);
-    //                         } else {
-    //                             gaurd.push_front(String::from(c));
-    //                         }
-    //                     }
-    //                 };
-    //             }
-    //             DecodedKey::RawKey(key) => print!("{:?}", key),
-    //         };
-    //     }
-    // }
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
