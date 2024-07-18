@@ -15,6 +15,7 @@ use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use samanthi::drivers::pci::detect_devices;
 use samanthi::task::executor::Executor;
+use samanthi::task::keyboard::init_memory_fs;
 use samanthi::task::simple_executor::SimpleExecutor;
 use samanthi::task::{keyboard, Task};
 use samanthi::{
@@ -23,6 +24,7 @@ use samanthi::{
     println,
 };
 use samanthi::{logging, serial_println};
+use vga::writers::{Graphics320x200x256, GraphicsWriter, PrimitiveDrawing};
 use x86_64::{
     structures::paging::{Page, PageTable, Translate},
     VirtAddr,
@@ -46,6 +48,8 @@ fn kernal_main(boot_info: &'static BootInfo) -> ! {
 
     detect_devices();
 
+    init_memory_fs();
+
     // use x86_64::registers::control::Cr4;
 
     // let cr4_flags = Cr4::read();
@@ -53,6 +57,12 @@ fn kernal_main(boot_info: &'static BootInfo) -> ! {
     // println!("CR4 Flags: {:?}", cr4_flags);
 
     // let mut executor = SimpleExecutor::new();
+
+    // let graphics = Graphics320x200x256::new();
+    // graphics.set_mode();
+    // graphics.clear_screen(9);
+    // graphics.draw_line((0, 0), (200, 200), 13);
+
     let mut executor = Executor::new();
     // executor.spawn(Task::new(example_task()));
     executor.spawn(Task::new(keyboard::print_keypresses()));
@@ -76,7 +86,7 @@ async fn example_task() {
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("Panic: {}", info);
+    serial_println!("Panic: {}", info);
     hlt_loop()
 }
 

@@ -6,7 +6,7 @@ use x86_64::{
 };
 
 use crate::{
-    gdt, hlt_loop, print, println,
+    gdt, hlt_loop, print, println, serial_println,
     vga_buffer::{console_backspace, WRITER},
 };
 use pic8259::ChainedPics;
@@ -78,7 +78,7 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
-    println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
+    serial_println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
 }
 // extern "x86-interrupt" fn ethernet_interrupt_handler(stack_frame: InterruptStackFrame) {
 //     println!("EXCEPTION: ETHERNET\n{:#?}", stack_frame);
@@ -117,10 +117,10 @@ extern "x86-interrupt" fn page_fault_handler(
 ) {
     use x86_64::registers::control::Cr2;
 
-    println!("EXCEPTION: PAGE FAULT");
-    println!("Accessed Address: {:?}", Cr2::read());
-    println!("Error Code: {:?}", error_code);
-    println!("{:#?}", stack_frame);
+    serial_println!("EXCEPTION: PAGE FAULT");
+    serial_println!("Accessed Address: {:?}", Cr2::read());
+    serial_println!("Error Code: {:?}", error_code);
+    serial_println!("{:#?}", stack_frame);
 
     hlt_loop();
 }

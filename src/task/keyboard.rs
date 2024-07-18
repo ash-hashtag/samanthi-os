@@ -5,6 +5,7 @@ use core::task::Poll;
 use alloc::{
     collections::BTreeMap,
     string::{String, ToString},
+    vec::Vec,
 };
 use conquer_once::spin::OnceCell;
 use crossbeam::queue::ArrayQueue;
@@ -12,10 +13,17 @@ use futures_util::{task::AtomicWaker, Stream, StreamExt};
 use lazy_static::lazy_static;
 use pc_keyboard::{layouts, HandleControl, KeyCode, Keyboard, ScancodeSet1};
 use spin::Mutex;
+use vga::{
+    colors::Color16,
+    writers::{
+        Graphics1280x800x256, Graphics320x200x256, Graphics320x240x256, GraphicsWriter, Text80x25,
+        TextWriter,
+    },
+};
 
 use crate::{
-    print, println,
-    vga_buffer::{console_backspace, Color, WRITER},
+    print, println, serial_println,
+    vga_buffer::{console_backspace, string_to_color, Color, WRITER},
 };
 
 use super::executor::EXIT_FLAG;
@@ -103,15 +111,22 @@ pub async fn print_keypresses() {
                         {
                             print!("^C\n{} $", current_dir);
                             line.clear();
+                        } else {
+                            serial_println!("unhandled key {:?}", key);
                         }
-
-                        // print!("{:?}", key);
                     }
                     pc_keyboard::DecodedKey::Unicode(c) => {
                         // backspace
                         if c as u8 == 8 {
                             line.pop();
                             console_backspace();
+                            continue;
+                        } else if c as u8 == 27 {
+                            // let text = Text80x25::new();
+                            // text.set_mode();
+                            // text.clear_screen();
+                            WRITER.lock().clear_everything();
+                            print!("{} $ ", current_dir);
                             continue;
                         }
 
@@ -130,8 +145,42 @@ pub async fn print_keypresses() {
     }
 }
 
+pub enum MemoryFile {
+    Static(&'static [u8]),
+    Dynamic(Vec<u8>),
+}
+
+impl AsRef<[u8]> for MemoryFile {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            MemoryFile::Static(r) => r,
+            MemoryFile::Dynamic(r) => r.as_slice(),
+        }
+    }
+}
+
 lazy_static! {
-    static ref MEMORY_FS: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
+    static ref MEMORY_FS: Mutex<BTreeMap<String, MemoryFile>> = Mutex::new(BTreeMap::new());
+}
+
+pub fn init_memory_fs() {
+    let mut fs = MEMORY_FS.lock();
+    fs.insert(
+        "/wallpaper".into(),
+        MemoryFile::Static(include_bytes!("../../assets/wallpaper.jpg.vga")),
+    );
+    fs.insert(
+        "/anime".into(),
+        MemoryFile::Static(include_bytes!("../../assets/anime.jpg.vga")),
+    );
+    fs.insert(
+        "/anime2".into(),
+        MemoryFile::Static(include_bytes!("../../assets/anime2.jpg.vga")),
+    );
+    fs.insert(
+        "/car".into(),
+        MemoryFile::Static(include_bytes!("../../assets/car.jpg.vga")),
+    );
 }
 
 const FS_SEP: char = '/';
@@ -146,7 +195,7 @@ pub fn execute_cmd(current_dir: &mut String, cmd: &str) {
                 if !k.starts_with(current_dir.as_str()) {
                     break;
                 }
-                println!("{:8} {}", v.len(), k);
+                println!("{:8} {}", v.as_ref().len(), k);
             }
         }
         arg if cmd.starts_with("cd ") => match &arg["cd ".len()..] {
@@ -166,12 +215,32 @@ pub fn execute_cmd(current_dir: &mut String, cmd: &str) {
             }
         },
 
+        _ if cmd.starts_with("show ") => {
+            let fs = MEMORY_FS.lock();
+            let mut filepath = String::new();
+            join_paths(&current_dir, &cmd["show ".len()..], &mut filepath);
+            if let Some(image) = fs.get(&filepath) {
+                unsafe {
+                    // let graphics = Graphics1280x800x256::new();
+                    let graphics = Graphics320x200x256::new();
+                    // let graphics = Graphics320x240x256::new();
+                    graphics.set_mode();
+                    graphics
+                        .get_frame_buffer()
+                        .copy_from(image.as_ref().as_ptr(), image.as_ref().len());
+                };
+            } else {
+                println!("image {} not found", filepath);
+            }
+        }
+
         args if cmd.starts_with("cat ") => {
             let fs = MEMORY_FS.lock();
             let mut filepath = String::new();
             for arg in args["cat ".len()..].split_whitespace() {
                 join_paths(&current_dir, arg, &mut filepath);
                 if let Some(content) = fs.get(&filepath) {
+                    let content = String::from_utf8_lossy(content.as_ref());
                     println!("{content}");
                 } else {
                     println!("cat: {} not found", filepath);
@@ -198,7 +267,7 @@ pub fn execute_cmd(current_dir: &mut String, cmd: &str) {
                 join_paths(&current_dir, filename, &mut filepath);
                 if MEMORY_FS
                     .lock()
-                    .insert(filepath, String::from(content))
+                    .insert(filepath, MemoryFile::Dynamic(content.as_bytes().to_vec()))
                     .is_some()
                 {
                     println!("overwritten {}", filename);
@@ -214,7 +283,7 @@ pub fn execute_cmd(current_dir: &mut String, cmd: &str) {
             let mut iter = cmd["color ".len()..].split_whitespace();
             if let Some(fg) = iter.next() {
                 let bg = iter.next().unwrap_or("black");
-                if let (Some(fg), Some(bg)) = (Color::from_string(fg), Color::from_string(bg)) {
+                if let (Some(fg), Some(bg)) = (string_to_color(fg), string_to_color(bg)) {
                     WRITER.lock().set_colors(fg, bg);
                     return;
                 }

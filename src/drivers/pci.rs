@@ -6,7 +6,7 @@ use x86_64::instructions::port::Port;
 
 use bit_field::BitField;
 
-use crate::println;
+use crate::{println, serial_println};
 
 /// Refers to the address of PCI data port in PCI config space.
 const PCI_DATA_PORT: u16 = 0xCFC;
@@ -190,6 +190,15 @@ fn on_device_callback(bus: u8, dev: u8, func: u8) {
         "New PCI device added. bus={:x}, dev={:x}, func={:x}
          vendor_id={:x}, device_id={:x}",
         pci_device.bus, pci_device.dev, pci_device.func, pci_device.vendor_id, pci_device.device_id
+    );
+    serial_println!(
+        "New PCI device added. bus={:x}, dev={:x}, func={:x}
+         vendor_id={:x}, device_id={:x}",
+        pci_device.bus,
+        pci_device.dev,
+        pci_device.func,
+        pci_device.vendor_id,
+        pci_device.device_id
     );
 
     PCI_DEVICES.lock().push(pci_device);

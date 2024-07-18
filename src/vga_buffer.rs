@@ -1,18 +1,25 @@
 use core::fmt::{self, Write};
+use vga::{
+    colors::{Color16, TextModeColor, DEFAULT_PALETTE},
+    fonts::TEXT_8X16_FONT,
+    vga::VGA,
+    writers::{ScreenCharacter, Text80x25, TextWriter},
+};
 use volatile::Volatile;
 
 use lazy_static::lazy_static;
 use spin::Mutex;
-use x86_64::instructions::interrupts;
+use x86_64::instructions::{interrupts, port::Port};
 
-use crate::serial_print;
+use crate::{serial_print, serial_println};
 
 lazy_static! {
-    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
-        column_position: 0,
-        color_code: ColorCode::new(Color::White, Color::Black),
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) }
-    });
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer::new());
+    // pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
+    //     column_position: 0,
+    //     color_code: ColorCode::new(Color::White, Color::Black),
+    //     buffer: unsafe { &mut *(0xb8000 as *mut Buffer) }
+    // });
 }
 
 #[derive(Clone, Copy)]
@@ -34,6 +41,25 @@ pub enum Color {
     Pink = 13,
     Yellow = 14,
     White = 15,
+}
+
+pub fn string_to_color(s: &str) -> Option<Color16> {
+    let color = match s {
+        "red" => Color16::Red,
+        "blue" => Color16::Blue,
+        "green" => Color16::Green,
+        "cyan" => Color16::Cyan,
+        "brown" => Color16::Brown,
+        "magenta" => Color16::Magenta,
+        "pink" => Color16::Pink,
+        "yellow" => Color16::Yellow,
+        "white" => Color16::White,
+        "black" => Color16::Black,
+        _ => {
+            return None;
+        }
+    };
+    Some(color)
 }
 
 impl Color {
@@ -84,24 +110,24 @@ struct Buffer {
 
 pub struct Writer {
     column_position: usize,
-    color_code: ColorCode,
-    buffer: &'static mut Buffer,
+    // color_code: ColorCode,
+    // buffer: &'static mut Buffer,
+    text: Text80x25,
+    color: TextModeColor,
 }
 
 impl Writer {
-    pub fn set_color(&mut self, color: ColorCode) {
-        self.color_code = color;
-    }
-
-    pub fn set_colors(&mut self, fg: Color, bg: Color) {
-        self.set_color(ColorCode::new(fg, bg));
+    pub fn set_colors(&mut self, fg: Color16, bg: Color16) {
+        self.color = TextModeColor::new(fg, bg);
     }
 
     pub fn new() -> Self {
+        let text = Text80x25::new();
+        text.set_mode();
         Self {
+            color: TextModeColor::new(Color16::White, Color16::Black),
+            text,
             column_position: 0,
-            color_code: ColorCode::new(Color::Yellow, Color::Black),
-            buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
         }
     }
     pub fn write_string(&mut self, s: &str) {
@@ -109,7 +135,10 @@ impl Writer {
             match byte {
                 // Printable ASCII bytes or newline
                 0x20..=0x7e | b'\n' => self.write_byte(byte),
-                _ => self.write_byte(0xfe),
+                _ => {
+                    self.write_byte(0xfe);
+                    serial_println!("unknown key pressed {}", byte);
+                }
             };
         }
     }
@@ -124,11 +153,11 @@ impl Writer {
                     self.new_line();
                 }
 
-                let color_code = self.color_code;
-                self.buffer.chars[row][self.column_position].write(ScreenChar {
-                    ascii_character: byte,
-                    color_code,
-                });
+                self.text.write_character(
+                    self.column_position,
+                    row,
+                    ScreenCharacter::new(byte, self.color),
+                );
                 self.column_position += 1;
             }
         }
@@ -137,8 +166,8 @@ impl Writer {
     pub fn new_line(&mut self) {
         for row in 1..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
-                let character = self.buffer.chars[row][col].read();
-                self.buffer.chars[row - 1][col].write(character);
+                let character = self.text.read_character(col, row);
+                self.text.write_character(col, row - 1, character)
             }
         }
         self.clear_row(BUFFER_HEIGHT - 1);
@@ -146,41 +175,42 @@ impl Writer {
     }
 
     fn clear_row(&mut self, row: usize) {
-        let blank = ScreenChar {
-            ascii_character: b' ',
-            color_code: self.color_code,
-        };
-
+        let blank = ScreenCharacter::new(b' ', self.color);
         for col in 0..BUFFER_WIDTH {
-            self.buffer.chars[row][col].write(blank);
+            self.text.write_character(col, row, blank);
         }
     }
 
     pub fn backspace(&mut self) {
-        let blank = ScreenChar {
-            ascii_character: b' ',
-            color_code: self.color_code,
-        };
+        let blank = ScreenCharacter::new(b' ', self.color);
 
-        let mut cell = &mut self.buffer.chars[BUFFER_HEIGHT - 1][self.column_position];
+        let position = (self.column_position, BUFFER_HEIGHT - 1);
 
-        let val = cell.read();
+        let val = self.text.read_character(position.0, position.1);
 
-        if val.ascii_character == blank.ascii_character && val.color_code.0 == blank.color_code.0 {
+        if val == blank {
             if self.column_position == 0 {
                 return;
             }
             self.column_position -= 1;
-            self.buffer.chars[BUFFER_HEIGHT - 1][self.column_position].write(blank);
+
+            self.text
+                .write_character(self.column_position, BUFFER_HEIGHT - 1, blank);
         } else {
-            cell.write(blank);
+            self.text.write_character(position.0, position.1, blank);
         }
     }
 
     pub fn clear_everything(&mut self) {
-        for row in 0..BUFFER_HEIGHT {
-            self.clear_row(row)
-        }
+        self.text.set_mode();
+        // {
+        //     let mut vga = VGA.lock();
+        //     vga.set_video_mode(vga::vga::VideoMode::Mode80x25);
+        //     vga.color_palette_registers.load_palette(&DEFAULT_PALETTE);
+
+        //     vga.load_font(&TEXT_8X16_FONT);
+        // }
+        self.text.clear_screen();
         self.column_position = 0;
     }
 }
