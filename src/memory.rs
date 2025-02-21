@@ -65,18 +65,24 @@ pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static>
 
 pub fn create_mapping(
     page: Page,
+    phys_frame: PhysFrame,
     mapper: &mut OffsetPageTable,
     frame_allocator: &mut impl FrameAllocator<Size4KiB>,
 ) {
     use x86_64::structures::paging::PageTableFlags as Flags;
 
-    let frame = PhysFrame::containing_address(PhysAddr::new(0xb8000));
+    let frame = phys_frame;
 
-    let flags = Flags::PRESENT | Flags::WRITABLE;
+    let flags = Flags::PRESENT | Flags::WRITABLE | Flags::NO_CACHE;
 
     let map_to_result = unsafe { mapper.map_to(page, frame, flags, frame_allocator) };
 
     map_to_result.expect("map_to failed").flush();
+    log::info!(
+        "Created Physical Address 0x{:x} to Virtual Address 0x{:x} mapping",
+        frame.start_address(),
+        page.start_address()
+    );
 }
 
 pub struct EmptyFrameAllocator;

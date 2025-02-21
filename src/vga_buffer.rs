@@ -85,7 +85,7 @@ impl Color {
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
-struct ColorCode(u8);
+pub struct ColorCode(u8);
 
 impl ColorCode {
     pub fn new(foreground: Color, background: Color) -> Self {
@@ -95,17 +95,17 @@ impl ColorCode {
 
 #[derive(Clone, Copy)]
 #[repr(C)]
-struct ScreenChar {
-    ascii_character: u8,
-    color_code: ColorCode,
+pub struct ScreenChar {
+    pub ascii_character: u8,
+    pub color_code: ColorCode,
 }
 
-const BUFFER_HEIGHT: usize = 25;
-const BUFFER_WIDTH: usize = 80;
+pub const BUFFER_HEIGHT: usize = 25;
+pub const BUFFER_WIDTH: usize = 80;
 
 #[repr(transparent)]
-struct Buffer {
-    chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
+pub struct Buffer {
+    pub chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
 pub struct Writer {
@@ -121,9 +121,15 @@ impl Writer {
         self.color = TextModeColor::new(fg, bg);
     }
 
+    pub fn print_frame_buffer_address(&self) {
+        let (guard, buffer) = self.text.get_frame_buffer();
+        log::info!("VGA Frame Buffer Address: {:x}", buffer as u64);
+    }
+
     pub fn new() -> Self {
         let text = Text80x25::new();
         text.set_mode();
+
         Self {
             color: TextModeColor::new(Color16::White, Color16::Black),
             text,
@@ -250,8 +256,9 @@ fn test_vga_buffer() {
         let s = "test string";
         writeln!(writer, "{}", s).unwrap();
         for (i, c) in s.chars().enumerate() {
-            let screen_char = writer.buffer.chars[BUFFER_HEIGHT - 2][i].read();
-            assert_eq!(char::from(screen_char.ascii_character), c);
+            let screen_char = writer.text.read_character(i, BUFFER_HEIGHT - 2);
+            // let screen_char = writer.buffer.chars[BUFFER_HEIGHT - 2][i].read();
+            assert_eq!(char::from(screen_char.get_character()), c);
         }
     })
 }

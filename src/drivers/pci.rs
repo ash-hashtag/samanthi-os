@@ -73,6 +73,7 @@ pub enum PCIDeviceQuery {
     DeviceID,
     VendorID,
     HeaderType,
+    MMIO,
 }
 
 impl PCIDeviceQuery {
@@ -87,6 +88,10 @@ impl PCIDeviceQuery {
             Self::HeaderType => PCIConfigRegister::new(bus, dev, func, 0x0C)
                 .read_config()
                 .get_bits(16..24) as u16,
+
+            Self::MMIO => PCIConfigRegister::new(bus, dev, func, 0x04)
+                .read_config()
+                .get_bits(0..16) as u16,
         }
     }
 }
@@ -125,11 +130,11 @@ impl PCIDevice {
     }
 
     pub fn set_bus_mastering(&self) -> Self {
-        self.clone()
+        todo!()
     }
 }
 
-static PCI_DEVICES: Mutex<Vec<PCIDevice>> = Mutex::new(Vec::new());
+pub static PCI_DEVICES: Mutex<Vec<PCIDevice>> = Mutex::new(Vec::new());
 
 pub fn search_device(vendor_id: u16, device_id: u16) -> Option<PCIDevice> {
     PCI_DEVICES
@@ -186,19 +191,25 @@ impl PCIDeviceProber {
 fn on_device_callback(bus: u8, dev: u8, func: u8) {
     let pci_device = unsafe { PCIDevice::new(bus, dev, func) };
 
-    println!(
+    log::info!(
         "New PCI device added. bus={:x}, dev={:x}, func={:x}
-         vendor_id={:x}, device_id={:x}",
-        pci_device.bus, pci_device.dev, pci_device.func, pci_device.vendor_id, pci_device.device_id
-    );
-    serial_println!(
-        "New PCI device added. bus={:x}, dev={:x}, func={:x}
-         vendor_id={:x}, device_id={:x}",
+         vendor_id={:x}, device_id={:x}, bars={:?}",
         pci_device.bus,
         pci_device.dev,
         pci_device.func,
         pci_device.vendor_id,
-        pci_device.device_id
+        pci_device.device_id,
+        pci_device.bars,
+    );
+    println!(
+        "New PCI device added. bus={:x}, dev={:x}, func={:x}
+         vendor_id={:x}, device_id={:x}, bars={:?}",
+        pci_device.bus,
+        pci_device.dev,
+        pci_device.func,
+        pci_device.vendor_id,
+        pci_device.device_id,
+        pci_device.bars,
     );
 
     PCI_DEVICES.lock().push(pci_device);

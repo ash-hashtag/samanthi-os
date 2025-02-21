@@ -22,6 +22,7 @@ use vga::{
 };
 
 use crate::{
+    logging::LOGS,
     print, println, serial_println,
     vga_buffer::{console_backspace, string_to_color, Color, WRITER},
 };
@@ -42,7 +43,7 @@ pub(crate) fn add_scancode(scancode: u8) {
             WAKER.wake();
         }
     } else {
-        println!("WARNING: scancode queu uninitialized");
+        println!("WARNING: scancode queue uninitialized");
     }
 }
 
@@ -303,6 +304,9 @@ pub fn execute_cmd(current_dir: &mut String, cmd: &str) {
 
         "shutdown now" => {
             EXIT_FLAG.store(true, core::sync::atomic::Ordering::Relaxed);
+        }
+        "logs" => {
+            println!("{}", LOGS.lock());
         }
         _ => println!("unknown command or misusage: {}", cmd),
     };

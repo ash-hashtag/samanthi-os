@@ -9,9 +9,10 @@ use core::ptr::null_mut;
 use linked_list_allocator::LockedHeap;
 use x86_64::{
     structures::paging::{
-        mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
+        mapper::MapToError, FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags,
+        PhysFrame, Size4KiB,
     },
-    VirtAddr,
+    PhysAddr, VirtAddr,
 };
 
 use self::{
@@ -60,6 +61,11 @@ pub fn init_heap(
         // ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
     }
 
+    log::info!(
+        "Heap Initialized from {}-{}",
+        HEAP_START,
+        HEAP_SIZE + HEAP_START
+    );
     Ok(())
 }
 
@@ -75,4 +81,37 @@ fn align_up(addr: usize, align: usize) -> usize {
 
     // let offset = (addr as *const u8).align_offset(align);
     // addr + offset
+}
+
+pub fn map_physical_to_virtual_address(
+    physical_address: u64,
+    virtual_address: u64,
+    frame_allocator: &mut impl FrameAllocator<Size4KiB>,
+    mapper: &mut impl Mapper<Size4KiB>,
+) -> u64 {
+    use x86_64::structures::paging::PageTableFlags as Flags;
+    let virt_addr = VirtAddr::new(virtual_address);
+    let page = Page::containing_address(virt_addr);
+    let frame = PhysFrame::containing_address(PhysAddr::new(physical_address));
+    let offset = physical_address - frame.start_address().as_u64();
+
+    log::info!(
+        "mapping phys: {:x} to {:x}, physcial frame start address: {:?}, virtual frame start address: {:?}",
+        physical_address,
+        virtual_address,
+        frame.start_address(),
+        page.start_address(),
+    );
+
+    let flags = Flags::PRESENT | Flags::WRITABLE;
+    let map_to_result = unsafe { mapper.map_to(page, frame, flags, frame_allocator) };
+    map_to_result.expect("map_to failed").flush();
+
+    offset
+}
+
+pub fn unmap_virtual_address(virtual_address: u64, mapper: &mut impl Mapper<Size4KiB>) {
+    mapper
+        .unmap(Page::containing_address(VirtAddr::new(virtual_address)))
+        .expect("unmap failed");
 }

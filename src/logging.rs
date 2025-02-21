@@ -1,8 +1,18 @@
+use core::fmt::Write;
+
 use log::{LevelFilter, Metadata, Record};
+use spin::Mutex;
 
 use crate::serial_println;
+use lazy_static::lazy_static;
+extern crate alloc;
+use alloc::string::String;
 
 pub struct KernelLogger;
+
+lazy_static! {
+    pub static ref LOGS: Mutex<String> = Mutex::new(String::new());
+}
 
 impl log::Log for KernelLogger {
     #[inline]
@@ -21,6 +31,17 @@ impl log::Log for KernelLogger {
             record.level(),
             record.args()
         );
+
+        {
+            let mut s = LOGS.lock();
+            s.write_fmt(format_args!(
+                "{:8} {:5} {}\n",
+                record.target(),
+                record.level(),
+                record.args()
+            ))
+            .unwrap();
+        }
         // }
 
         // if level <= LevelFilter::Info {
